@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuração de logging para ambiente de PRODUÇÃO.
+
+  Política de segurança (PCI-DSS Requisito 10 / LGPD Art. 46):
+  - NUNCA logar: senhas, tokens, dados de cartão (PAN), CVV, CPF, dados pessoais
+  - NUNCA logar objetos Document completos do paymentDB
+  - Mensagens de log devem ser mascaradas antes de qualquer append
+  - Nível mínimo: INFO em produção (nunca DEBUG em produção)
+  - Logs retidos por mínimo 12 meses (PCI-DSS Requisito 10.7)
+-->
+<configuration>
+
+  <!-- Appender de console para ambientes containerizados (stdout → agregador de logs) -->
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <!--
+        Formato estruturado: facilita parsing por ELK / Splunk / Datadog
+        IMPORTANTE: nunca incluir %msg bruto sem mascaramento quando dados sensíveis puderem estar presentes
+      -->
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{transactionId}] %logger{40} — %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!--
+    Appender de arquivo com rollover diário — retenção de 366 dias (PCI-DSS Req. 10.7)
+    DESCOMENTE e configure o path em produção.
+  -->
+  <!--
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>/var/log/payment-service/application.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>/var/log/payment-service/application.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+      <maxHistory>366</maxHistory>
+      <totalSizeCap>10GB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{transactionId}] %logger{40} — %msg%n</pattern>
+    </encoder>
+  </appender>
+  -->
+
+  <!-- Código da aplicação: INFO em produção -->
+  <logger name="br.com.justo" level="INFO" additivity="false">
+    <appender-ref ref="STDOUT"/>
+    <!-- <appender-ref ref="FILE"/> -->
+  </logger>
+
+  <!-- Driver MongoDB: apenas warnings e erros -->
+  <logger name="org.mongodb.driver" level="WARN"/>
+  <logger name="com.mongodb"        level="WARN"/>
+
+  <!-- Root: WARN para libs transitivas -->
+  <root level="WARN">
+    <appender-ref ref="STDOUT"/>
+    <!-- <appender-ref ref="FILE"/> -->
+  </root>
+
+</configuration>

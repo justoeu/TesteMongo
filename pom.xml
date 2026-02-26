@@ -1,48 +1,314 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>TesteMongo</groupId>
-  <artifactId>TesteMongo</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <groupId>br.com.justo</groupId>
+  <artifactId>payment-mongo-service</artifactId>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
-  <name>TesteMongo</name>
-  <url>http://maven.apache.org</url>
+  <name>payment-mongo-service</name>
+  <url>https://github.com/justoeu/TesteMongo</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <java.version>17</java.version>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
+
+    <!-- =====================================================================
+         Versões das dependências — centralizadas para facilitar auditoria
+         SEGURANÇA: Revisar e atualizar mensalmente via: mvn versions:display-dependency-updates
+         ===================================================================== -->
+
+    <!-- MongoDB Driver Sync 5.x (substitui mongo-java-driver:2.7.2 EOL) -->
+    <mongodb.driver.version>5.4.0</mongodb.driver.version>
+
+    <!-- Apache HttpClient 5 (corrige CVE-2012-6153, CVE-2014-3577, CVE-2020-13956) -->
+    <httpclient5.version>5.5.2</httpclient5.version>
+
+    <!-- Gson (corrige CVE-2022-25647 CVSS 7.7) -->
+    <gson.version>2.13.1</gson.version>
+
+    <!-- JUnit Jupiter 5 (corrige CVE-2020-15250) -->
+    <junit.jupiter.version>5.11.4</junit.jupiter.version>
+
+    <!-- Logging estruturado (substitui System.out.println) -->
+    <slf4j.version>2.0.16</slf4j.version>
+    <logback.version>1.5.16</logback.version>
+
+    <!-- Flapdoodle Embedded MongoDB — testes isolados sem infraestrutura real -->
+    <flapdoodle.version>3.5.4</flapdoodle.version>
+
+    <!-- =====================================================================
+         Versões dos plugins
+         ===================================================================== -->
+    <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+    <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
+    <pitest.version>1.15.3</pitest.version>
+    <pitest.junit5.plugin.version>1.2.1</pitest.junit5.plugin.version>
+    <owasp.dependency.check.version>11.1.1</owasp.dependency.check.version>
+    <spotbugs.version>4.8.6.6</spotbugs.version>
+    <findsecbugs.version>1.13.0</findsecbugs.version>
+
+    <!-- =====================================================================
+         Thresholds de qualidade — falha o build se não atingidos
+         ===================================================================== -->
+    <!-- PITest: mínimo 60% de mutantes mortos -->
+    <pitest.mutationThreshold>60</pitest.mutationThreshold>
+    <!-- PITest: mínimo 80% de cobertura de linha -->
+    <pitest.coverageThreshold>80</pitest.coverageThreshold>
+    <!-- OWASP: falha o build se houver CVE com CVSS >= 7.0 -->
+    <owasp.failOnCVSS>7</owasp.failOnCVSS>
   </properties>
 
-  	<dependencies>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.8.2</version>
-			<scope>test</scope>
-		</dependency>
+  <dependencies>
 
-		<dependency>
-			<groupId>org.apache.httpcomponents</groupId>
-			<artifactId>httpclient</artifactId>
-			<version>4.1.2</version>
-		</dependency>
+    <!-- =================================================================
+         DRIVER MONGODB — substitui o depreciado mongo-java-driver:2.7.2
+         Suporte a SCRAM-SHA-256, TLS 1.3, WriteConcern.MAJORITY, OCSP
+         ================================================================= -->
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-sync</artifactId>
+      <version>${mongodb.driver.version}</version>
+    </dependency>
 
-		<dependency>
-			<groupId>com.google.code.gson</groupId>
-			<artifactId>gson</artifactId>
-			<version>1.7.2</version>
-			<scope>compile</scope>
-		</dependency>
-		
-				<dependency>
-		    <groupId>org.mongodb</groupId>
-		    <artifactId>mongo-java-driver</artifactId>
-		    <version>2.7.2</version>
-		</dependency>
-		
-		
-	</dependencies>
-  
-  
+    <!-- =================================================================
+         HTTP CLIENT 5 — substitui httpclient:4.1.2
+         Corrige: CVE-2012-6153, CVE-2014-3577 (MITM), CVE-2015-5262,
+                  CVE-2020-13956 (Security Bypass)
+         NOTA: groupId e artifactId mudaram na versão 5.x
+         ================================================================= -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+      <version>${httpclient5.version}</version>
+    </dependency>
+
+    <!-- =================================================================
+         GSON — substitui gson:1.7.2
+         Corrige: CVE-2022-25647 (CVSS 7.7 — Desserialização de dados
+         não confiáveis via writeReplace())
+         ================================================================= -->
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>${gson.version}</version>
+    </dependency>
+
+    <!-- =================================================================
+         LOGGING — substitui System.out.println
+         SLF4J: API de logging com níveis, contexto MDC e mascaramento
+         Logback: implementação com configuração por ambiente
+         ================================================================= -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+    </dependency>
+
+    <!-- =================================================================
+         JUNIT JUPITER 5 — substitui junit:junit:4.8.2
+         Corrige: CVE-2020-15250 (Info Disclosure local via TemporaryFolder)
+         scope=test: NÃO incluído no artefato de produção
+         ================================================================= -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- =================================================================
+         FLAPDOODLE EMBEDDED MONGODB — testes 100% isolados
+         Inicia um processo MongoDB real em memória durante os testes.
+         Elimina dependência de infraestrutura externa (127.0.0.1:27017)
+         e garante que cada execução parte de estado limpo.
+         scope=test: NÃO incluído no artefato de produção
+         ================================================================= -->
+    <dependency>
+      <groupId>de.flapdoodle.embed</groupId>
+      <artifactId>de.flapdoodle.embed.mongo</artifactId>
+      <version>${flapdoodle.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <build>
+    <plugins>
+
+      <!-- ==============================================================
+           COMPILADOR JAVA 17 LTS (suporte até 2029)
+           Ativa avisos de deprecation e unchecked para detectar APIs
+           obsoletas como as do mongo-java-driver:2.x
+           ============================================================== -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven.compiler.plugin.version}</version>
+        <configuration>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+          <compilerArgs>
+            <arg>-Xlint:deprecation</arg>
+            <arg>-Xlint:unchecked</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <!-- ==============================================================
+           SUREFIRE — execução dos testes JUnit Jupiter 5
+           ============================================================== -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven.surefire.plugin.version}</version>
+      </plugin>
+
+      <!-- ==============================================================
+           PITEST — TESTES DE MUTAÇÃO
+           Score mínimo: 60% de mutantes mortos
+           Cobertura mínima: 80% de linhas
+           Operadores: cobertura completa para sistema de pagamentos
+           Executar: mvn verify  ou  mvn org.pitest:pitest-maven:mutationCoverage
+           ============================================================== -->
+      <plugin>
+        <groupId>org.pitest</groupId>
+        <artifactId>pitest-maven</artifactId>
+        <version>${pitest.version}</version>
+        <dependencies>
+          <!-- Necessário para compatibilidade com JUnit Jupiter 5 -->
+          <dependency>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-junit5-plugin</artifactId>
+            <version>${pitest.junit5.plugin.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <targetClasses>
+            <param>br.com.justo.*</param>
+          </targetClasses>
+          <targetTests>
+            <param>br.com.justo.*</param>
+          </targetTests>
+          <mutators>
+            <!-- Condicionais -->
+            <mutator>CONDITIONALS_BOUNDARY</mutator>
+            <mutator>NEGATE_CONDITIONALS</mutator>
+            <mutator>REMOVE_CONDITIONALS</mutator>
+            <!-- Chamadas de método — crítico para verificar side-effects -->
+            <mutator>VOID_METHOD_CALLS</mutator>
+            <mutator>NON_VOID_METHOD_CALLS</mutator>
+            <!-- Retornos — crítico para validar resultados -->
+            <mutator>NULL_RETURNS</mutator>
+            <mutator>EMPTY_RETURNS</mutator>
+            <mutator>FALSE_RETURNS</mutator>
+            <mutator>TRUE_RETURNS</mutator>
+            <mutator>PRIMITIVE_RETURNS</mutator>
+            <!-- Constantes e operações matemáticas -->
+            <mutator>MATH</mutator>
+            <mutator>INLINE_CONSTS</mutator>
+          </mutators>
+          <mutationThreshold>${pitest.mutationThreshold}</mutationThreshold>
+          <coverageThreshold>${pitest.coverageThreshold}</coverageThreshold>
+          <outputFormats>
+            <outputFormat>HTML</outputFormat>
+            <outputFormat>XML</outputFormat>
+          </outputFormats>
+          <!-- Timeout por mutante: evita loops infinitos -->
+          <timeoutConstant>8000</timeoutConstant>
+          <timeoutFactor>2.0</timeoutFactor>
+          <!-- Execução paralela -->
+          <threads>4</threads>
+          <!-- Modo incremental: re-analisa apenas código alterado -->
+          <withHistory>true</withHistory>
+          <!-- Falha o build se não houver mutantes para testar -->
+          <failWhenNoMutations>true</failWhenNoMutations>
+          <excludedMethods>
+            <param>toString</param>
+            <param>hashCode</param>
+            <param>equals</param>
+          </excludedMethods>
+        </configuration>
+        <executions>
+          <execution>
+            <id>pitest-mutation-coverage</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>mutationCoverage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- ==============================================================
+           OWASP DEPENDENCY-CHECK — ANÁLISE DE CVEs NAS DEPENDÊNCIAS
+           Falha o build se houver CVE com CVSS >= 7.0
+           Executar: mvn dependency-check:check
+           Relatório: target/dependency-check-report.html
+           ============================================================== -->
+      <plugin>
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>${owasp.dependency.check.version}</version>
+        <configuration>
+          <failBuildOnCVSS>${owasp.failOnCVSS}</failBuildOnCVSS>
+          <formats>
+            <format>HTML</format>
+            <format>JSON</format>
+          </formats>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- ==============================================================
+           SPOTBUGS + FINDSECBUGS — ANÁLISE ESTÁTICA DE SEGURANÇA
+           FindSecBugs detecta: hardcoded credentials, SQL/NoSQL injection,
+           desserialização insegura, XXE, SSRF e outros padrões inseguros
+           Executar: mvn spotbugs:check
+           ============================================================== -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs.version}</version>
+        <configuration>
+          <effort>Max</effort>
+          <threshold>Low</threshold>
+          <failOnError>true</failOnError>
+          <plugins>
+            <plugin>
+              <groupId>com.h3xstream.findsecbugs</groupId>
+              <artifactId>findsecbugs-plugin</artifactId>
+              <version>${findsecbugs.version}</version>
+            </plugin>
+          </plugins>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+
 </project>

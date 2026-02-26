@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuração de logging para ambiente de TESTES.
+  Este arquivo sobrescreve logback.xml durante a execução de testes (src/test/resources).
+
+  Política:
+  - br.com.justo: DEBUG para diagnóstico completo durante testes
+  - Flapdoodle / MongoDB driver: WARN para reduzir ruído de infraestrutura
+  - Nunca logar: senhas, tokens, dados de pagamento, CPF, PAN
+-->
+<configuration>
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <!-- Formato legível com timestamp, thread, nível, logger e mensagem -->
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} — %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Código da aplicação: DEBUG completo durante testes -->
+  <logger name="br.com.justo" level="DEBUG" additivity="false">
+    <appender-ref ref="STDOUT"/>
+  </logger>
+
+  <!-- Infraestrutura de testes: apenas avisos relevantes -->
+  <logger name="de.flapdoodle"           level="WARN"/>
+  <logger name="org.mongodb.driver"      level="WARN"/>
+  <logger name="com.mongodb"             level="WARN"/>
+
+  <!-- Root: WARN para evitar ruído de libs transitivas -->
+  <root level="WARN">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+</configuration>
