@@ -175,140 +175,214 @@
         <version>${maven.surefire.plugin.version}</version>
       </plugin>
 
-      <!-- ==============================================================
-           PITEST — TESTES DE MUTAÇÃO
-           Score mínimo: 60% de mutantes mortos
-           Cobertura mínima: 80% de linhas
-           Operadores: cobertura completa para sistema de pagamentos
-           Executar: mvn verify  ou  mvn org.pitest:pitest-maven:mutationCoverage
-           ============================================================== -->
-      <plugin>
-        <groupId>org.pitest</groupId>
-        <artifactId>pitest-maven</artifactId>
-        <version>${pitest.version}</version>
-        <dependencies>
-          <!-- Necessário para compatibilidade com JUnit Jupiter 5 -->
-          <dependency>
-            <groupId>org.pitest</groupId>
-            <artifactId>pitest-junit5-plugin</artifactId>
-            <version>${pitest.junit5.plugin.version}</version>
-          </dependency>
-        </dependencies>
-        <configuration>
-          <targetClasses>
-            <param>br.com.justo.*</param>
-          </targetClasses>
-          <targetTests>
-            <param>br.com.justo.*</param>
-          </targetTests>
-          <mutators>
-            <!-- Condicionais -->
-            <mutator>CONDITIONALS_BOUNDARY</mutator>
-            <mutator>NEGATE_CONDITIONALS</mutator>
-            <mutator>REMOVE_CONDITIONALS</mutator>
-            <!-- Chamadas de método — crítico para verificar side-effects -->
-            <mutator>VOID_METHOD_CALLS</mutator>
-            <mutator>NON_VOID_METHOD_CALLS</mutator>
-            <!-- Retornos — crítico para validar resultados -->
-            <mutator>NULL_RETURNS</mutator>
-            <mutator>EMPTY_RETURNS</mutator>
-            <mutator>FALSE_RETURNS</mutator>
-            <mutator>TRUE_RETURNS</mutator>
-            <mutator>PRIMITIVE_RETURNS</mutator>
-            <!-- Constantes e operações matemáticas -->
-            <mutator>MATH</mutator>
-            <mutator>INLINE_CONSTS</mutator>
-          </mutators>
-          <mutationThreshold>${pitest.mutationThreshold}</mutationThreshold>
-          <coverageThreshold>${pitest.coverageThreshold}</coverageThreshold>
-          <outputFormats>
-            <outputFormat>HTML</outputFormat>
-            <outputFormat>XML</outputFormat>
-          </outputFormats>
-          <!-- Timeout por mutante: evita loops infinitos -->
-          <timeoutConstant>8000</timeoutConstant>
-          <timeoutFactor>2.0</timeoutFactor>
-          <!-- Execução paralela -->
-          <threads>4</threads>
-          <!-- Modo incremental: re-analisa apenas código alterado -->
-          <withHistory>true</withHistory>
-          <!-- Falha o build se não houver mutantes para testar -->
-          <failWhenNoMutations>true</failWhenNoMutations>
-          <excludedMethods>
-            <param>toString</param>
-            <param>hashCode</param>
-            <param>equals</param>
-          </excludedMethods>
-        </configuration>
-        <executions>
-          <execution>
-            <id>pitest-mutation-coverage</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>mutationCoverage</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- ==============================================================
-           OWASP DEPENDENCY-CHECK — ANÁLISE DE CVEs NAS DEPENDÊNCIAS
-           Falha o build se houver CVE com CVSS >= 7.0
-           Executar: mvn dependency-check:check
-           Relatório: target/dependency-check-report.html
-           ============================================================== -->
-      <plugin>
-        <groupId>org.owasp</groupId>
-        <artifactId>dependency-check-maven</artifactId>
-        <version>${owasp.dependency.check.version}</version>
-        <configuration>
-          <failBuildOnCVSS>${owasp.failOnCVSS}</failBuildOnCVSS>
-          <formats>
-            <format>HTML</format>
-            <format>JSON</format>
-          </formats>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!-- ==============================================================
-           SPOTBUGS + FINDSECBUGS — ANÁLISE ESTÁTICA DE SEGURANÇA
-           FindSecBugs detecta: hardcoded credentials, SQL/NoSQL injection,
-           desserialização insegura, XXE, SSRF e outros padrões inseguros
-           Executar: mvn spotbugs:check
-           ============================================================== -->
-      <plugin>
-        <groupId>com.github.spotbugs</groupId>
-        <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>${spotbugs.version}</version>
-        <configuration>
-          <effort>Max</effort>
-          <threshold>Low</threshold>
-          <failOnError>true</failOnError>
-          <plugins>
-            <plugin>
-              <groupId>com.h3xstream.findsecbugs</groupId>
-              <artifactId>findsecbugs-plugin</artifactId>
-              <version>${findsecbugs.version}</version>
-            </plugin>
-          </plugins>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
     </plugins>
   </build>
+
+  <!-- ==================================================================
+       PROFILES DE ANÁLISE DE QUALIDADE
+       Separados do build principal para permitir mvn test sem rede.
+
+       Ativar análise completa em CI:  mvn verify -Pquality-full
+       Ativar apenas CVE check:        mvn verify -Psecurity-check
+       Ativar apenas mutation testing: mvn verify -Pmutation-testing
+       ================================================================== -->
+  <profiles>
+
+    <!-- mutation-testing: PITest - score minimo 60% de mutantes mortos -->
+    <profile>
+      <id>mutation-testing</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <version>${pitest.version}</version>
+            <dependencies>
+              <dependency>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-junit5-plugin</artifactId>
+                <version>${pitest.junit5.plugin.version}</version>
+              </dependency>
+            </dependencies>
+            <configuration>
+              <targetClasses>
+                <param>br.com.justo.*</param>
+              </targetClasses>
+              <targetTests>
+                <param>br.com.justo.*</param>
+              </targetTests>
+              <mutators>
+                <mutator>CONDITIONALS_BOUNDARY</mutator>
+                <mutator>NEGATE_CONDITIONALS</mutator>
+                <mutator>REMOVE_CONDITIONALS</mutator>
+                <mutator>VOID_METHOD_CALLS</mutator>
+                <mutator>NON_VOID_METHOD_CALLS</mutator>
+                <mutator>NULL_RETURNS</mutator>
+                <mutator>EMPTY_RETURNS</mutator>
+                <mutator>FALSE_RETURNS</mutator>
+                <mutator>TRUE_RETURNS</mutator>
+                <mutator>PRIMITIVE_RETURNS</mutator>
+                <mutator>MATH</mutator>
+                <mutator>INLINE_CONSTS</mutator>
+              </mutators>
+              <mutationThreshold>${pitest.mutationThreshold}</mutationThreshold>
+              <coverageThreshold>${pitest.coverageThreshold}</coverageThreshold>
+              <outputFormats>
+                <outputFormat>HTML</outputFormat>
+                <outputFormat>XML</outputFormat>
+              </outputFormats>
+              <timeoutConstant>8000</timeoutConstant>
+              <timeoutFactor>2.0</timeoutFactor>
+              <threads>4</threads>
+              <withHistory>true</withHistory>
+              <failWhenNoMutations>true</failWhenNoMutations>
+              <excludedMethods>
+                <param>toString</param>
+                <param>hashCode</param>
+                <param>equals</param>
+              </excludedMethods>
+            </configuration>
+            <executions>
+              <execution>
+                <id>pitest-mutation-coverage</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>mutationCoverage</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- security-check: OWASP + SpotBugs - falha se CVE CVSS >= 7.0 -->
+    <profile>
+      <id>security-check</id>
+      <build>
+        <plugins>
+          <!-- OWASP DEPENDENCY-CHECK -->
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>${owasp.dependency.check.version}</version>
+            <configuration>
+              <failBuildOnCVSS>${owasp.failOnCVSS}</failBuildOnCVSS>
+              <formats>
+                <format>HTML</format>
+                <format>JSON</format>
+              </formats>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- SPOTBUGS + FINDSECBUGS -->
+          <plugin>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-maven-plugin</artifactId>
+            <version>${spotbugs.version}</version>
+            <configuration>
+              <effort>Max</effort>
+              <threshold>Low</threshold>
+              <failOnError>true</failOnError>
+              <plugins>
+                <plugin>
+                  <groupId>com.h3xstream.findsecbugs</groupId>
+                  <artifactId>findsecbugs-plugin</artifactId>
+                  <version>${findsecbugs.version}</version>
+                </plugin>
+              </plugins>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- quality-full: todos os checks - usar em CI/CD com internet -->
+    <profile>
+      <id>quality-full</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <version>${pitest.version}</version>
+            <dependencies>
+              <dependency>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-junit5-plugin</artifactId>
+                <version>${pitest.junit5.plugin.version}</version>
+              </dependency>
+            </dependencies>
+            <configuration>
+              <targetClasses><param>br.com.justo.*</param></targetClasses>
+              <targetTests><param>br.com.justo.*</param></targetTests>
+              <mutationThreshold>${pitest.mutationThreshold}</mutationThreshold>
+              <coverageThreshold>${pitest.coverageThreshold}</coverageThreshold>
+              <threads>4</threads>
+              <withHistory>true</withHistory>
+              <failWhenNoMutations>true</failWhenNoMutations>
+            </configuration>
+            <executions>
+              <execution>
+                <id>pitest-mutation-coverage</id>
+                <phase>verify</phase>
+                <goals><goal>mutationCoverage</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>${owasp.dependency.check.version}</version>
+            <configuration>
+              <failBuildOnCVSS>${owasp.failOnCVSS}</failBuildOnCVSS>
+            </configuration>
+            <executions>
+              <execution>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-maven-plugin</artifactId>
+            <version>${spotbugs.version}</version>
+            <configuration>
+              <effort>Max</effort>
+              <threshold>Low</threshold>
+              <failOnError>true</failOnError>
+              <plugins>
+                <plugin>
+                  <groupId>com.h3xstream.findsecbugs</groupId>
+                  <artifactId>findsecbugs-plugin</artifactId>
+                  <version>${findsecbugs.version}</version>
+                </plugin>
+              </plugins>
+            </configuration>
+            <executions>
+              <execution>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+  </profiles>
 
 </project>
